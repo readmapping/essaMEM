@@ -91,7 +91,7 @@ struct sparseSA {
   } 
 
   // Constructor builds sparse suffix array. 
-  sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_);
+  sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_);
 
   // Modified Kasai et all for LCP computation.
   void computeLCP();
@@ -134,12 +134,12 @@ struct sparseSA {
     long end = link.end;
     while(LCP[start] >= link.depth) { 
       exp++; 
-      if(exp >= thresh) return false; 
+      if(exp >= thresh) return false;
       start--; 
     }
     while(end < NKm1 && LCP[end+1] >= link.depth) { 
       exp++; 
-      if(exp >= thresh) return false; 
+      if(exp >= thresh) return false;
       end++; 
     }
     link.start = start; link.end = end;

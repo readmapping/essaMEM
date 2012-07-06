@@ -9,6 +9,7 @@
 #include <getopt.h>
 #include <time.h>
 #include <sys/time.h>
+#include <sys/resource.h>
 
 #include <cctype> // std::tolower(), uppercase/lowercase conversion
 
@@ -23,6 +24,9 @@ enum mum_t { MUM, MAM, MEM };
 int min_len = 20;
 mum_t type = MAM;
 bool rev_comp = false, _4column = false, nucleotides_only = false;
+bool automatic = true;
+bool suflink = true;
+bool child = false;
 int K = 1, num_threads = 1, query_threads = 1;
 sparseSA *sa;
 string query_fasta;
@@ -161,6 +165,8 @@ int main(int argc, char* argv[]) {
       {"threads", 1, 0, 0}, // 8
       {"n", 0, 0, 0}, // 9
       {"qthreads", 1, 0, 0}, // 10
+      {"suflink", 1, 0, 0}, // 11
+      {"child", 1, 0, 0}, // 12
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -184,6 +190,8 @@ int main(int argc, char* argv[]) {
       case 8: num_threads = atoi(optarg); break;
       case 9: nucleotides_only = true; break;
       case 10: query_threads = atoi(optarg) ; break;
+      case 11: suflink = atoi(optarg) > 0;	automatic = false; break;
+      case 12: child = atoi(optarg) > 0;	automatic = false; break;
       default: break; 
       }
     }
@@ -205,11 +213,17 @@ int main(int argc, char* argv[]) {
 
   // Automatically use 4 column format if there are multiple reference sequences.
   if(startpos.size() > 1) _4column = true;
-
-  sa = new sparseSA(ref, refdescr, startpos, _4column, K);
+  if(automatic){
+      suflink = K < 4;
+      child = K >= 4;
+  }
+  
+  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child);
 
   write_lock(1);
   clock_t start = clock();
+  rusage m_ruse1, m_ruse2;
+  getrusage(RUSAGE_SELF, &m_ruse1);
   pthread_attr_t attr;  pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 
@@ -231,9 +245,19 @@ int main(int argc, char* argv[]) {
     pthread_join(thread_ids[i], NULL);    
 
   clock_t end = clock();
-  double cpu_time = (double)( end - start ) /CLOCKS_PER_SEC;
+  getrusage(RUSAGE_SELF, &m_ruse2);
+  double wall_time = (double)( end - start ) /CLOCKS_PER_SEC;
   cerr << "mapping: done" << endl;
-  cerr << "time for mapping: " << cpu_time << endl;
+  cerr << "time for mapping (wall time): " << wall_time << endl;
+  timeval t1, t2;
+  t1 = m_ruse1.ru_utime;
+  t2 = m_ruse2.ru_utime;
+  double cpu_time = ((double)(t2.tv_sec*1000000 + t2.tv_usec - (t1.tv_sec*1000000 + t1.tv_usec )))/1000.0;
+  cerr << "time for mapping (cpu time): " << cpu_time << endl;
+  t1 = m_ruse1.ru_stime;
+  t2 = m_ruse2.ru_stime;
+  double sys_time = ((double)(t2.tv_sec*1000000 + t2.tv_usec - (t1.tv_sec*1000000 + t1.tv_usec )))/1000.0;
+  cerr << "time for mapping (sys time): " << sys_time << endl;
   write_lock(0);
   delete sa;
 }
