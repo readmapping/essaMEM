@@ -282,6 +282,8 @@ void usage(string prog) {
   cerr << "-k             sampled suffix positions (one by default)" << endl;
   cerr << "-threads       number of threads to use for -maxmatch, only valid k > 1 " << endl;
   cerr << "-qthreads      number of threads to use for queries " << endl;
+  cerr << "-suflink       use suffix links in the index and during search " << endl;
+  cerr << "-child         use child table in the index and during search " << endl;
   cerr << endl;
   cerr << "Example usage:" << endl;
   cerr << endl;
