@@ -99,8 +99,13 @@ sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, 
   // Use algorithm by Kasai et al to construct LCP array.
   computeLCP();  // SA + ISA -> LCP
   LCP.init();
-  if(!hasSufLink)
-    ISA.clear();
+  if(!hasSufLink){
+      {
+          vector<int> tmp;
+          ISA.swap(tmp);
+      }
+    //ISA.clear();
+  }
   if(hasChild){
     CHILD.resize(N/K);
     //Use algorithm by Abouelhoda et al to construct CHILD array
