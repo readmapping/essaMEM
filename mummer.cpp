@@ -34,6 +34,7 @@ bool suflink = true;
 bool child = false;
 bool print_length = false;
 bool printSubstring = false;
+bool printRevCompForw = false;
 int K = 1, num_threads = 1, query_threads = 1;
 sparseSA *sa;
 string query_fasta;
@@ -89,9 +90,9 @@ void *query_thread(void *arg_) {
             if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
             else printf("> %s\n", meta.c_str());
         }
-        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, true, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, true, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, true, num_threads);
         if(!print) sa->print_match(meta, matches, false); 
       }
 	  if(rev_comp) {
@@ -100,9 +101,9 @@ void *query_thread(void *arg_) {
             if(print_length) printf("> %s Reverse\tLen = %ld\n", meta.c_str(), P->length()); 
             else printf("> %s Reverse\n", meta.c_str());
         }
-	    if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-	    else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+	    if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, false, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, false, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, false, num_threads);
 	    if(!print) sa->print_match(meta, matches, true); 
 	  }
 	}
@@ -142,9 +143,9 @@ void *query_thread(void *arg_) {
             else printf("> %s\n", meta.c_str());
         }
 
-        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, true, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, true, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, true, num_threads);
         if(!print) sa->print_match(meta, matches, false); 
       }
       if(rev_comp) {
@@ -153,9 +154,9 @@ void *query_thread(void *arg_) {
             if(print_length) printf("> %s Reverse\tLen = %ld\n", meta.c_str(), P->length()); 
             else printf("> %s Reverse\n", meta.c_str());
         }
-        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, false, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, false, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, false, num_threads);
         if(!print) sa->print_match(meta, matches, true); 
       }
     }
@@ -194,6 +195,7 @@ int main(int argc, char* argv[]) {
       {"L", 0, 0, 0}, // 14
       {"r", 0, 0, 0}, // 15
       {"s", 0, 0, 0}, // 16
+      {"c", 0, 0, 0}, // 17
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -223,6 +225,7 @@ int main(int argc, char* argv[]) {
       case 14: print_length = true; break;
       case 15: setRevComp = true; break;
       case 16: printSubstring = true; break;
+      case 17: printRevCompForw = true; break;
       default: break; 
       }
     }
@@ -276,7 +279,7 @@ int main(int argc, char* argv[]) {
   if(setRevComp)
       forward = false;
   
-  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult, printSubstring);
+  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult, printSubstring, printRevCompForw);
 
   write_lock(1);
   clock_t start = clock();
@@ -338,6 +341,7 @@ void usage(string prog) {
   cerr << "-L             print length of query sequence in header of matches" << endl;
   cerr << "-r             compute only reverse complement matches" << endl;
   cerr << "-s             print first 53 characters of the matching substring" << endl;
+  cerr << "-c             Report the query position of a reverse complement match relative to the forward strand of the query sequence" << endl;
   cerr << endl;
   cerr << "Additional options:" << endl;
   cerr << "-k             sampled suffix positions (one by default)" << endl;

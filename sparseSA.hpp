@@ -81,6 +81,8 @@ struct sparseSA {
   bool hasSufLink;
   int sparseMult;
   bool printSubstring;
+  bool printRevCompForw;
+  bool forward;
 
   // Maps a hit in the concatenated sequence set to a position in that sequence.
   void from_set(long hit, long &seq, long &seqpos) {
@@ -93,7 +95,8 @@ struct sparseSA {
   } 
 
   // Constructor builds sparse suffix array. 
-  sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_, int sparseMult_, bool printSubstring_);
+  sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, 
+  long K_, bool suflink_, bool child_, int sparseMult_, bool printSubstring_, bool printRevCompForw_);
 
   // Modified Kasai et all for LCP computation.
   void computeLCP();
@@ -168,16 +171,17 @@ struct sparseSA {
   // et. al. Note this is a "one-sided" query. It "streams" the query
   // P throught he index.  Consequently, repeats can occur in the
   // pattern P.
-  void MAM(string &P, vector<match_t> &matches, int min_len, long& memCount, bool print) { 
+  void MAM(string &P, vector<match_t> &matches, int min_len, long& memCount, bool forward_, bool print) { 
+    forward = forward_;
     if(K != 1) return;  // Only valid for full suffix array.
     findMAM(P, matches, min_len, memCount, print);  
   }
 
   // Find Maximal Exact Matches (MEMs) 
-  void MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& memCount, int num_threads = 1);
+  void MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& memCount, bool forward_, int num_threads = 1);
 
   // Maximal Unique Match (MUM) 
-  void MUM(string &P, vector<match_t> &unique, int min_len, long& memCount, bool print);  
+  void MUM(string &P, vector<match_t> &unique, int min_len, long& memCount, bool forward_, bool print);  
 };
 
 

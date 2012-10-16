@@ -15,13 +15,16 @@ pthread_mutex_t cout_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 long memCount = 0;
 
-sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_, int sparseMult_, bool printSubstring_) : 
+sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, 
+        bool __4column, long K_, bool suflink_, bool child_, int sparseMult_, bool printSubstring_, bool printRevCompForw_) : 
   descr(descr_), startpos(startpos_), S(S_) {
   _4column = __4column;
   hasChild = child_;
   hasSufLink = suflink_;
   sparseMult = sparseMult_;
   printSubstring = printSubstring_;
+  printRevCompForw = printRevCompForw_;
+  forward = true;
 
   // Get maximum query sequence description length.
   maxdescrlen = 0;
@@ -559,21 +562,22 @@ void sparseSA::collectMEMs(string &P, long prefix, interval_t mli, interval_t xm
 
 // Finds left maximal matches given a right maximal match at position i.
 void sparseSA::find_Lmaximal(string &P, long prefix, long i, long len, vector<match_t> &matches, int min_len, bool print) {
+  long Plength = P.length();
   // Advance to the left up to K steps.
   for(long k = 0; k < sparseMult*K; k++) {
     // If we reach the end and the match is long enough, print.
     if(prefix == 0 || i == 0) {
       if(len >= min_len) {
-	if(print) print_match(match_t(i, prefix, len), matches);
-	else matches.push_back(match_t(i, prefix, len));
+	if(print) print_match(match_t(i, (!printRevCompForw || forward) ? prefix : Plength-1-prefix, len), matches);
+	else matches.push_back(match_t(i, (!printRevCompForw || forward) ? prefix : Plength-1-prefix, len));
       }
       return; // Reached mismatch, done.
     }
     else if(P[prefix-1] != S[i-1]){
       // If we reached a mismatch, print the match if it is long enough.
       if(len >= min_len) {
-	if(print) print_match(match_t(i, prefix, len), matches);
-	else matches.push_back(match_t(i, prefix, len));
+	if(print) print_match(match_t(i, (!printRevCompForw || forward) ? prefix : Plength-1-prefix, len), matches);
+	else matches.push_back(match_t(i, (!printRevCompForw || forward) ? prefix : Plength-1-prefix, len));
       }
       return; // Reached mismatch, done.
     }
@@ -628,6 +632,7 @@ void sparseSA::print_match(string meta, vector<match_t> &buf, bool rc) {
 // Finds maximal almost-unique matches (MAMs) These can repeat in the
 // given query pattern P, but occur uniquely in the indexed reference S.
 void sparseSA::findMAM(string &P, vector<match_t> &matches, int min_len, long& currentCount, bool print) {
+  long Plength = P.length();
   memCount = 0;
   interval_t cur(0, N-1, 0);
   long prefix = 0; 
@@ -642,6 +647,7 @@ void sparseSA::findMAM(string &P, vector<match_t> &matches, int min_len, long& c
       if(is_leftmaximal(P, prefix, SA[cur.start])) {
 	// Yes, it's a MAM.
 	match_t m; m.ref = SA[cur.start]; m.query = prefix; m.len = cur.depth;
+    if(printRevCompForw && !forward) m.query = Plength-1-prefix;
 	if(print) print_match(m);
 	else  matches.push_back(m); 
       }
@@ -668,10 +674,11 @@ bool sparseSA::is_leftmaximal(string &P, long p1, long p2) {
 struct by_ref { bool operator() (const match_t &a, const match_t &b) const { if(a.ref == b.ref) return a.len > b.len; else return a.ref < b.ref; }  };
 
 // Maximal Unique Match (MUM) 
-void sparseSA::MUM(string &P, vector<match_t> &unique, int min_len, long& currentCount, bool print) {
+void sparseSA::MUM(string &P, vector<match_t> &unique, int min_len, long& currentCount, bool forward_, bool print) {
+  forward = forward_;
   // Find unique MEMs.
   vector<match_t> matches;
-  MAM(P, matches, min_len, currentCount, false);
+  MAM(P, matches, min_len, currentCount, forward_, false);
   memCount=0;
 
   // Adapted from Stephan Kurtz's code in cleanMUMcand.c in MUMMer v3.20. 
@@ -728,7 +735,8 @@ void *MEMthread(void *arg) {
   pthread_exit(NULL);
 }
 
-void sparseSA::MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& currentCount, int num_threads) {
+void sparseSA::MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& currentCount, bool forward_, int num_threads) {
+  forward = forward_;
   if(min_len < K) return;
   memCount=0;
   if(num_threads == 1) {
