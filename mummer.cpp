@@ -22,7 +22,7 @@ void usage(string prog);
 enum mum_t { MUM, MAM, MEM };
 
 int min_len = 20;
-int sparseMult=3;
+int sparseMult=1;
 mum_t type = MAM;
 bool rev_comp = false, _4column = false, nucleotides_only = false;
 bool forward = true;
@@ -33,6 +33,7 @@ bool automaticSkip = true;
 bool suflink = true;
 bool child = false;
 bool print_length = false;
+bool printSubstring = false;
 int K = 1, num_threads = 1, query_threads = 1;
 sparseSA *sa;
 string query_fasta;
@@ -192,6 +193,7 @@ int main(int argc, char* argv[]) {
       {"skip", 1, 0, 0}, // 13
       {"L", 0, 0, 0}, // 14
       {"r", 0, 0, 0}, // 15
+      {"s", 0, 0, 0}, // 16
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -217,9 +219,10 @@ int main(int argc, char* argv[]) {
       case 10: query_threads = atoi(optarg) ; break;
       case 11: suflink = atoi(optarg) > 0;	automatic = false; break;
       case 12: child = atoi(optarg) > 0;	automatic = false; break;
-      case 13: sparseMult = atoi(optarg) > 0;	automaticSkip = false; break;
+      case 13: sparseMult = atoi(optarg); automaticSkip = false; break;
       case 14: print_length = true; break;
       case 15: setRevComp = true; break;
+      case 16: printSubstring = true; break;
       default: break; 
       }
     }
@@ -273,7 +276,7 @@ int main(int argc, char* argv[]) {
   if(setRevComp)
       forward = false;
   
-  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult);
+  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult, printSubstring);
 
   write_lock(1);
   clock_t start = clock();
@@ -334,6 +337,7 @@ void usage(string prog) {
   cerr << "-n             match only the characters a, c, g, or t" << endl;
   cerr << "-L             print length of query sequence in header of matches" << endl;
   cerr << "-r             compute only reverse complement matches" << endl;
+  cerr << "-s             print first 53 characters of the matching substring" << endl;
   cerr << endl;
   cerr << "Additional options:" << endl;
   cerr << "-k             sampled suffix positions (one by default)" << endl;

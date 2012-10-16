@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include <stack>
 #include <assert.h>
+#include <string.h>
 
 #include "sparseSA.hpp"
 
@@ -14,12 +15,13 @@ pthread_mutex_t cout_mutex = PTHREAD_MUTEX_INITIALIZER;
 
 long memCount = 0;
 
-sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_, int sparseMult_) : 
+sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_, int sparseMult_, bool printSubstring_) : 
   descr(descr_), startpos(startpos_), S(S_) {
   _4column = __4column;
   hasChild = child_;
   hasSufLink = suflink_;
   sparseMult = sparseMult_;
+  printSubstring = printSubstring_;
 
   // Get maximum query sequence description length.
   maxdescrlen = 0;
@@ -583,18 +585,21 @@ void sparseSA::find_Lmaximal(string &P, long prefix, long i, long len, vector<ma
 // Print results in format used by MUMmer v3.  Prints results
 // 1-indexed, instead of 0-indexed.
 void sparseSA::print_match(match_t m) {
-  if(_4column == false) {
-      memCount++;
+  memCount++;
+  if(_4column == false) { 
     printf("%8ld  %8ld  %8ld\n", m.ref + 1, m.query + 1, m.len);
   }
   else {
-      memCount++;
     long refseq=0, refpos=0;
     from_set(m.ref, refseq, refpos); // from_set is slow!!!
     // printf works faster than count... why? I don't know!!
     printf("  %s", descr[refseq].c_str());
     for(long j = 0; j < maxdescrlen - (long)descr[refseq].length() + 1; j++) putchar(' '); 
     printf(" %8ld  %8ld  %8ld\n", refpos + 1L, m.query + 1L, m.len);
+  }
+  if(printSubstring){
+      if(m.len > 53) printf("%s . . .\n", S.substr(m.ref, 53).c_str());
+      else printf("%s\n", S.substr(m.ref, m.len).c_str());
   }
 }
 
