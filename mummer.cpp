@@ -37,18 +37,21 @@ bool printSubstring = false;
 bool printRevCompForw = false;
 int K = 1, num_threads = 1, query_threads = 1;
 sparseSA *sa;
-string query_fasta;
+string query_fasta[32];
+int MAX_QUERY_FILES = 32;
+int numQueryFiles = 0;
 
 struct query_arg {
   int skip0;
   int skip;
+  int queryFile;
 };
 
 void *query_thread(void *arg_) {
   query_arg *arg = (query_arg *)arg_;
   long memCounter = 0;
   string meta, line;
-  ifstream data(query_fasta.c_str());
+  ifstream data(query_fasta[arg->queryFile].c_str());
 
   vector<match_t> matches;
 
@@ -56,7 +59,7 @@ void *query_thread(void *arg_) {
 
   long seq_cnt = 0;
 
-  if(!data.is_open()) { cerr << "unable to open " << query_fasta << endl; exit(1); }
+  if(!data.is_open()) { cerr << "unable to open " << query_fasta[arg->queryFile] << endl; exit(1); }
 
   // Collect meta data.
   while(!data.eof()) {
@@ -230,13 +233,19 @@ int main(int argc, char* argv[]) {
       }
     }
   }
-  if (argc - optind != 2) usage(argv[0]);
+  if (argc - optind < 2 || argc - optind >  MAX_QUERY_FILES + 1) usage(argv[0]);
 
   if(K != 1 && type != MEM) { cerr << "-k option valid only for -maxmatch" << endl; exit(1); }
   if(num_threads <= 0) { cerr << "invalid number of threads specified" << endl; exit(1); }
 
-  string ref_fasta = argv[optind]; 
-  query_fasta = argv[optind+1];
+  string ref_fasta = argv[optind];
+  int argNumber = optind+1;
+  numQueryFiles = 0;
+  while(argNumber < argc){
+      query_fasta[numQueryFiles] = argv[argNumber];
+      numQueryFiles++;
+      argNumber++;
+  }
 
   string ref;
   
@@ -287,24 +296,25 @@ int main(int argc, char* argv[]) {
   getrusage(RUSAGE_SELF, &m_ruse1);
   pthread_attr_t attr;  pthread_attr_init(&attr);
   pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+  for(int idx = 0; idx < numQueryFiles; idx++){
+    vector<query_arg> args(query_threads);
+    vector<pthread_t> thread_ids(query_threads);  
 
-  vector<query_arg> args(query_threads);
-  vector<pthread_t> thread_ids(query_threads);  
+    // Initialize additional thread data.
+    for(int i = 0; i < query_threads; i++) { 
+        args[i].skip = query_threads;
+        args[i].skip0 = i;
+        args[i].queryFile = idx;
+    }
 
-  // Initialize additional thread data.
-  for(int i = 0; i < query_threads; i++) { 
-    args[i].skip = query_threads;
-    args[i].skip0 = i;
+    // Create joinable threads to find MEMs.
+    for(int i = 0; i < query_threads; i++) 
+        pthread_create(&thread_ids[i], &attr, query_thread, (void *)&args[i]);
+
+    // Wait for all threads to terminate.
+    for(int i = 0; i < query_threads; i++) 
+        pthread_join(thread_ids[i], NULL);    
   }
-
-  // Create joinable threads to find MEMs.
-  for(int i = 0; i < query_threads; i++) 
-    pthread_create(&thread_ids[i], &attr, query_thread, (void *)&args[i]);
-
-  // Wait for all threads to terminate.
-  for(int i = 0; i < query_threads; i++) 
-    pthread_join(thread_ids[i], NULL);    
-
   clock_t end = clock();
   getrusage(RUSAGE_SELF, &m_ruse2);
   double wall_time = (double)( end - start ) /CLOCKS_PER_SEC;
@@ -325,7 +335,7 @@ int main(int argc, char* argv[]) {
 
 
 void usage(string prog) {
-  cerr << "Usage: " << prog << " [options] <reference-file> <query-file>" << endl;
+  cerr << "Usage: " << prog << " [options] <reference-file> <query file1> . . . [query file32]" << endl;
   cerr << "Implemented MUMmer v3 options:" << endl;
   cerr << "-mum           compute maximal matches that are unique in both sequences" << endl;
   cerr << "-mumreference  compute maximal matches that are unique in the reference-" << endl;
