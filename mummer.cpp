@@ -25,6 +25,9 @@ int min_len = 20;
 int sparseMult=3;
 mum_t type = MAM;
 bool rev_comp = false, _4column = false, nucleotides_only = false;
+bool forward = true;
+bool setRevComp = false;
+bool setBoth = false;
 bool automatic = true;
 bool automaticSkip = true;
 bool suflink = true;
@@ -80,14 +83,16 @@ void *query_thread(void *arg_) {
 	if(seq_cnt % arg->skip == arg->skip0) {
 	  // Process P.
 	  cerr << "# P.length()=" << P->length() << endl;
-	  if(print){ 
-          if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
-          else printf("> %s\n", meta.c_str());
+      if(forward){
+        if(print){ 
+            if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
+            else printf("> %s\n", meta.c_str());
+        }
+        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+        if(!print) sa->print_match(meta, matches, false); 
       }
-	  if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-	  else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-      else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
-	  if(!print) sa->print_match(meta, matches, false); 
 	  if(rev_comp) {
 	    reverse_complement(*P, nucleotides_only);
 	    if(print){ 
@@ -130,25 +135,27 @@ void *query_thread(void *arg_) {
   if(meta != "") {
     if(seq_cnt % arg->skip == arg->skip0) {
       cerr << "# P.length()=" << P->length() << endl;
-      if(print){ 
-          if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
-          else printf("> %s\n", meta.c_str());
-      }
+      if(forward){
+        if(print){ 
+            if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
+            else printf("> %s\n", meta.c_str());
+        }
 
-      if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-      else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-      else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
-      if(!print) sa->print_match(meta, matches, false); 
+        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+        if(!print) sa->print_match(meta, matches, false); 
+      }
       if(rev_comp) {
-	reverse_complement(*P, nucleotides_only);
-	if(print){ 
-        if(print_length) printf("> %s Reverse\tLen = %ld\n", meta.c_str(), P->length()); 
-        else printf("> %s Reverse\n", meta.c_str());
-    }
-	if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
-	else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
-    else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
-	if(!print) sa->print_match(meta, matches, true); 
+        reverse_complement(*P, nucleotides_only);
+        if(print){ 
+            if(print_length) printf("> %s Reverse\tLen = %ld\n", meta.c_str(), P->length()); 
+            else printf("> %s Reverse\n", meta.c_str());
+        }
+        if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+        else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
+        if(!print) sa->print_match(meta, matches, true); 
       }
     }
   }
@@ -184,6 +191,7 @@ int main(int argc, char* argv[]) {
       {"child", 1, 0, 0}, // 12
       {"skip", 1, 0, 0}, // 13
       {"L", 0, 0, 0}, // 14
+      {"r", 0, 0, 0}, // 15
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -198,7 +206,7 @@ int main(int argc, char* argv[]) {
       switch(longindex) { 
       case 0: min_len = atol(optarg); break;
       case 1: type = MAM; break;
-      case 2: rev_comp = true;	break;
+      case 2: setBoth = true;	break;
       case 3: type = MEM; break;
       case 4: type = MUM; break;
       case 5: type = MAM; break;
@@ -211,6 +219,7 @@ int main(int argc, char* argv[]) {
       case 12: child = atoi(optarg) > 0;	automatic = false; break;
       case 13: sparseMult = atoi(optarg) > 0;	automaticSkip = false; break;
       case 14: print_length = true; break;
+      case 15: setRevComp = true; break;
       default: break; 
       }
     }
@@ -254,6 +263,15 @@ int main(int argc, char* argv[]) {
           cerr << " or " << ((int) (min_len-12)/K) << " would be more appropriate" << endl;
       }
   }
+  
+  if(setBoth && setRevComp){
+      cerr << "ERROR -r and -b options are mutually exclusive" << endl;
+      exit(1);
+  }
+  if(setBoth || setRevComp)
+      rev_comp = true;
+  if(setRevComp)
+      forward = false;
   
   sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult);
 
@@ -315,6 +333,7 @@ void usage(string prog) {
   cerr << "               reference sequence inputs"  << endl;
   cerr << "-n             match only the characters a, c, g, or t" << endl;
   cerr << "-L             print length of query sequence in header of matches" << endl;
+  cerr << "-r             compute only reverse complement matches" << endl;
   cerr << endl;
   cerr << "Additional options:" << endl;
   cerr << "-k             sampled suffix positions (one by default)" << endl;
