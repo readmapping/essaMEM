@@ -12,11 +12,14 @@ extern "C" { void suffixsort(int *x, int *p, int n, int k, int l); };
 
 pthread_mutex_t cout_mutex = PTHREAD_MUTEX_INITIALIZER;
 
-sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_) : 
+long memCount = 0;
+
+sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_, int sparseMult_) : 
   descr(descr_), startpos(startpos_), S(S_) {
   _4column = __4column;
   hasChild = child_;
   hasSufLink = suflink_;
+  sparseMult = sparseMult_;
 
   // Get maximum query sequence description length.
   maxdescrlen = 0;
@@ -452,7 +455,7 @@ void sparseSA::findMEM(long k, string &P, vector<match_t> &matches, int min_len,
   interval_t xmi(0,N/K-1,0); // max match interval
   
   // Right-most match used to terminate search.
-  int min_lenK = min_len - (K-1);
+  int min_lenK = min_len - (sparseMult*K-1);
 
   while( prefix <= (long)P.length() - (K-k)) {
 #ifndef NDEBUG
@@ -469,7 +472,7 @@ void sparseSA::findMEM(long k, string &P, vector<match_t> &matches, int min_len,
 //      assert(mli.depth == mliCopy.depth);
 #endif
     if(mli.depth > xmi.depth) xmi = mli;
-    if(mli.depth <= 1) { mli.reset(N/K-1); xmi.reset(N/K-1); prefix+=K; continue; }
+    if(mli.depth <= 1) { mli.reset(N/K-1); xmi.reset(N/K-1); prefix+=sparseMult*K; continue; }
 
     if(mli.depth >= min_lenK) {
 #ifndef NDEBUG
@@ -487,15 +490,35 @@ void sparseSA::findMEM(long k, string &P, vector<match_t> &matches, int min_len,
 #endif
       collectMEMs(P, prefix, mli, xmi, matches, min_len, print); // Using LCP info to find MEM length.
       // When using ISA/LCP trick, depth = depth - K. prefix += K. 
-      prefix+=K;	
-      if( !hasSufLink || suffixlink(mli) == false ) { mli.reset(N/K-1); xmi.reset(N/K-1); continue; }
-      if(hasSufLink ) suffixlink(xmi);
+      prefix+=sparseMult*K;	
+      if( !hasSufLink ){ mli.reset(N/K-1); xmi.reset(N/K-1); continue; }
+      else{
+          int i = 0;
+          bool succes  = true;
+          while(i < sparseMult && (succes = suffixlink(mli))){
+              suffixlink(xmi);
+              i++;
+          }
+          if(!succes){
+              mli.reset(N/K-1); xmi.reset(N/K-1); continue;
+          }
+      }
     }
     else {
       // When using ISA/LCP trick, depth = depth - K. prefix += K. 
-      prefix+=K;	
-      if( !hasSufLink ||suffixlink(mli) == false ) { mli.reset(N/K-1); xmi.reset(N/K-1); continue; }
-      xmi = mli;
+      prefix+=sparseMult*K;	
+      if( !hasSufLink) { mli.reset(N/K-1); xmi.reset(N/K-1); continue; }
+      else{
+          int i = 0;
+          bool succes  = true;
+          while(i < sparseMult && (succes = suffixlink(mli))){
+              i++;
+          }
+          if(!succes){
+              mli.reset(N/K-1); xmi.reset(N/K-1); continue;
+          }
+          xmi = mli;
+      }
     }
   }
   if(print) print_match(match_t(), matches);   // Clear buffered matches.
@@ -535,7 +558,7 @@ void sparseSA::collectMEMs(string &P, long prefix, interval_t mli, interval_t xm
 // Finds left maximal matches given a right maximal match at position i.
 void sparseSA::find_Lmaximal(string &P, long prefix, long i, long len, vector<match_t> &matches, int min_len, bool print) {
   // Advance to the left up to K steps.
-  for(long k = 0; k < K; k++) {
+  for(long k = 0; k < sparseMult*K; k++) {
     // If we reach the end and the match is long enough, print.
     if(prefix == 0 || i == 0) {
       if(len >= min_len) {
@@ -561,9 +584,11 @@ void sparseSA::find_Lmaximal(string &P, long prefix, long i, long len, vector<ma
 // 1-indexed, instead of 0-indexed.
 void sparseSA::print_match(match_t m) {
   if(_4column == false) {
+      memCount++;
     printf("%8ld  %8ld  %8ld\n", m.ref + 1, m.query + 1, m.len);
   }
   else {
+      memCount++;
     long refseq=0, refpos=0;
     from_set(m.ref, refseq, refpos); // from_set is slow!!!
     // printf works faster than count... why? I don't know!!
@@ -597,7 +622,8 @@ void sparseSA::print_match(string meta, vector<match_t> &buf, bool rc) {
 
 // Finds maximal almost-unique matches (MAMs) These can repeat in the
 // given query pattern P, but occur uniquely in the indexed reference S.
-void sparseSA::findMAM(string &P, vector<match_t> &matches, int min_len, bool print) {
+void sparseSA::findMAM(string &P, vector<match_t> &matches, int min_len, long& currentCount, bool print) {
+  memCount = 0;
   interval_t cur(0, N-1, 0);
   long prefix = 0; 
   while(prefix < (long)P.length()) {
@@ -623,6 +649,7 @@ void sparseSA::findMAM(string &P, vector<match_t> &matches, int min_len, bool pr
       if( cur.depth == 0 || expand_link(cur) == false ) { cur.depth = 0; cur.start = 0; cur.end = N-1; break; }
     } while(cur.depth > 0 && cur.size() == 1);
   }
+  currentCount = memCount;
 }
 
 // Returns true if the position p1 in the query pattern and p2 in the
@@ -636,10 +663,11 @@ bool sparseSA::is_leftmaximal(string &P, long p1, long p2) {
 struct by_ref { bool operator() (const match_t &a, const match_t &b) const { if(a.ref == b.ref) return a.len > b.len; else return a.ref < b.ref; }  };
 
 // Maximal Unique Match (MUM) 
-void sparseSA::MUM(string &P, vector<match_t> &unique, int min_len, bool print) {
+void sparseSA::MUM(string &P, vector<match_t> &unique, int min_len, long& currentCount, bool print) {
   // Find unique MEMs.
   vector<match_t> matches;
-  MAM(P, matches, min_len, false);
+  MAM(P, matches, min_len, currentCount, false);
+  memCount=0;
 
   // Adapted from Stephan Kurtz's code in cleanMUMcand.c in MUMMer v3.20. 
   long currentright, dbright = 0;
@@ -670,7 +698,7 @@ void sparseSA::MUM(string &P, vector<match_t> &unique, int min_len, bool print) 
     if(print) print_match(matches[matches.size()-1]);
     else unique.push_back(matches[matches.size()-1]);
   }
-
+  currentCount = memCount;
 }
 
 struct thread_data {
@@ -695,10 +723,12 @@ void *MEMthread(void *arg) {
   pthread_exit(NULL);
 }
 
-void sparseSA::MEM(string &P, vector<match_t> &matches, int min_len, bool print, int num_threads) {
+void sparseSA::MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& currentCount, int num_threads) {
   if(min_len < K) return;
+  memCount=0;
   if(num_threads == 1) {
     for(int k = 0; k < K; k++) { findMEM(k, P, matches, min_len, print); }
+    currentCount += memCount;
   }
   else if(num_threads > 1) {
     vector<pthread_t> thread_ids(num_threads);  

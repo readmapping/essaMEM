@@ -22,9 +22,11 @@ void usage(string prog);
 enum mum_t { MUM, MAM, MEM };
 
 int min_len = 20;
+int sparseMult=3;
 mum_t type = MAM;
 bool rev_comp = false, _4column = false, nucleotides_only = false;
 bool automatic = true;
+bool automaticSkip = true;
 bool suflink = true;
 bool child = false;
 int K = 1, num_threads = 1, query_threads = 1;
@@ -38,7 +40,7 @@ struct query_arg {
 
 void *query_thread(void *arg_) {
   query_arg *arg = (query_arg *)arg_;
-
+  long memCounter = 0;
   string meta, line;
   ifstream data(query_fasta.c_str());
 
@@ -78,16 +80,16 @@ void *query_thread(void *arg_) {
 	  // Process P.
 	  cerr << "# P.length()=" << P->length() << endl;
 	  if(print) printf("> %s\n", meta.c_str());
-	  if(type == MAM) sa->MAM(*P, matches, min_len, print);
-	  else if(type == MUM) sa->MUM(*P, matches, min_len, print);
-	  else if(type == MEM) sa->MEM(*P, matches, min_len, print, num_threads);
+	  if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+	  else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+      else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
 	  if(!print) sa->print_match(meta, matches, false); 
 	  if(rev_comp) {
 	    reverse_complement(*P, nucleotides_only);
 	    if(print) printf("> %s Reverse\n", meta.c_str());
-	    if(type == MAM) sa->MAM(*P, matches, min_len, print);
-	    else if(type == MUM) sa->MUM(*P, matches, min_len, print);
-	    else if(type == MEM) sa->MEM(*P, matches, min_len, print, num_threads);
+	    if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+	    else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+        else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
 	    if(!print) sa->print_match(meta, matches, true); 
 	  }
 	}
@@ -123,22 +125,22 @@ void *query_thread(void *arg_) {
       cerr << "# P.length()=" << P->length() << endl;
       if(print) printf("> %s\n", meta.c_str());
 
-      if(type == MAM) sa->MAM(*P, matches, min_len, print);
-      else if(type == MUM) sa->MUM(*P, matches, min_len, print);
-      else if(type == MEM) sa->MEM(*P, matches, min_len, print, num_threads);
+      if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+      else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+      else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
       if(!print) sa->print_match(meta, matches, false); 
       if(rev_comp) {
 	reverse_complement(*P, nucleotides_only);
 	if(print) printf("> %s Reverse\n", meta.c_str());
-	if(type == MAM) sa->MAM(*P, matches, min_len, print);
-	else if(type == MUM) sa->MUM(*P, matches, min_len, print);
-	else if(type == MEM) sa->MEM(*P, matches, min_len, print, num_threads);
+	if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
+	else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
+    else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
 	if(!print) sa->print_match(meta, matches, true); 
       }
     }
   }
   delete P;
-  
+  printf("number of M(E/A/U)Ms: %ld\n", memCounter);
   pthread_exit(NULL);
 }
 
@@ -167,6 +169,7 @@ int main(int argc, char* argv[]) {
       {"qthreads", 1, 0, 0}, // 10
       {"suflink", 1, 0, 0}, // 11
       {"child", 1, 0, 0}, // 12
+      {"skip", 1, 0, 0}, // 13
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -192,6 +195,7 @@ int main(int argc, char* argv[]) {
       case 10: query_threads = atoi(optarg) ; break;
       case 11: suflink = atoi(optarg) > 0;	automatic = false; break;
       case 12: child = atoi(optarg) > 0;	automatic = false; break;
+      case 13: sparseMult = atoi(optarg) > 0;	automaticSkip = false; break;
       default: break; 
       }
     }
@@ -217,8 +221,26 @@ int main(int argc, char* argv[]) {
       suflink = K < 4;
       child = K >= 4;
   }
+  if(automaticSkip){
+      if(suflink && !child) sparseMult = 1;
+      else{
+          if(K >= 4) sparseMult = (int) (min_len-10)/K;
+          else sparseMult = (int) (min_len-12)/K;
+      }
+  }
+  else{
+      if(sparseMult*K > min_len){
+        while(sparseMult*K > min_len)
+            sparseMult--;
+        cerr << "skip parameter was decreased to " << sparseMult << " because skip*K > minimum length" << endl;
+      }
+      if(sparseMult*K > min_len-10){
+          cerr << "note that the skip parameter is very high, a value of " << ((int) (min_len-10)/K);
+          cerr << " or " << ((int) (min_len-12)/K) << " would be more appropriate" << endl;
+      }
+  }
   
-  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child);
+  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult);
 
   write_lock(1);
   clock_t start = clock();
@@ -284,6 +306,8 @@ void usage(string prog) {
   cerr << "-qthreads      number of threads to use for queries " << endl;
   cerr << "-suflink       use suffix links (1=yes or 0=no) in the index and during search [auto]" << endl;
   cerr << "-child         use child table (1=yes or 0=no) in the index and during search [auto]" << endl;
+  cerr << "-skip          sparsify the MEM-finding algorithm even more, performing jumps of skip*k [auto (l-10)/k]" << endl;
+  cerr << "               this is a performance parameter that trade-offs SA traversal with checking of right-maximal MEMs" << endl;
   cerr << endl;
   cerr << "Example usage:" << endl;
   cerr << endl;

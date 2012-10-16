@@ -79,6 +79,7 @@ struct sparseSA {
   long K; // suffix sampling, K = 1 every suffix, K = 2 every other suffix, K = 3, every 3rd sffix
   bool hasChild;
   bool hasSufLink;
+  int sparseMult;
 
   // Maps a hit in the concatenated sequence set to a position in that sequence.
   void from_set(long hit, long &seq, long &seqpos) {
@@ -91,7 +92,7 @@ struct sparseSA {
   } 
 
   // Constructor builds sparse suffix array. 
-  sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_);
+  sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, long K_, bool suflink_, bool child_, int sparseMult_);
 
   // Modified Kasai et all for LCP computation.
   void computeLCP();
@@ -158,7 +159,7 @@ struct sparseSA {
   void findMEM(long k, string &P, vector<match_t> &matches, int min_len, bool print);
 
   // NOTE: min_len must be > 1
-  void findMAM(string &P, vector<match_t> &matches, int min_len, bool print);
+  void findMAM(string &P, vector<match_t> &matches, int min_len, long& memCount, bool print);
   inline bool is_leftmaximal(string &P, long p1, long p2);
 
   // Maximal Almost-Unique Match (MAM). Match is unique in the indexed
@@ -166,16 +167,16 @@ struct sparseSA {
   // et. al. Note this is a "one-sided" query. It "streams" the query
   // P throught he index.  Consequently, repeats can occur in the
   // pattern P.
-  void MAM(string &P, vector<match_t> &matches, int min_len, bool print) { 
+  void MAM(string &P, vector<match_t> &matches, int min_len, long& memCount, bool print) { 
     if(K != 1) return;  // Only valid for full suffix array.
-    findMAM(P, matches, min_len, print);  
+    findMAM(P, matches, min_len, memCount, print);  
   }
 
   // Find Maximal Exact Matches (MEMs) 
-  void MEM(string &P, vector<match_t> &matches, int min_len, bool print, int num_threads = 1);
+  void MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& memCount, int num_threads = 1);
 
   // Maximal Unique Match (MUM) 
-  void MUM(string &P, vector<match_t> &unique, int min_len, bool print);  
+  void MUM(string &P, vector<match_t> &unique, int min_len, long& memCount, bool print);  
 };
 
 
