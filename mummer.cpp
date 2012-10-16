@@ -29,6 +29,7 @@ bool automatic = true;
 bool automaticSkip = true;
 bool suflink = true;
 bool child = false;
+bool print_length = false;
 int K = 1, num_threads = 1, query_threads = 1;
 sparseSA *sa;
 string query_fasta;
@@ -79,14 +80,20 @@ void *query_thread(void *arg_) {
 	if(seq_cnt % arg->skip == arg->skip0) {
 	  // Process P.
 	  cerr << "# P.length()=" << P->length() << endl;
-	  if(print) printf("> %s\n", meta.c_str());
+	  if(print){ 
+          if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
+          else printf("> %s\n", meta.c_str());
+      }
 	  if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
 	  else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
       else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
 	  if(!print) sa->print_match(meta, matches, false); 
 	  if(rev_comp) {
 	    reverse_complement(*P, nucleotides_only);
-	    if(print) printf("> %s Reverse\n", meta.c_str());
+	    if(print){ 
+            if(print_length) printf("> %s Reverse\tLen = %ld\n", meta.c_str(), P->length()); 
+            else printf("> %s Reverse\n", meta.c_str());
+        }
 	    if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
 	    else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
         else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
@@ -123,7 +130,10 @@ void *query_thread(void *arg_) {
   if(meta != "") {
     if(seq_cnt % arg->skip == arg->skip0) {
       cerr << "# P.length()=" << P->length() << endl;
-      if(print) printf("> %s\n", meta.c_str());
+      if(print){ 
+          if(print_length) printf("> %s\tLen = %ld\n", meta.c_str(), P->length()); 
+          else printf("> %s\n", meta.c_str());
+      }
 
       if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
       else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
@@ -131,7 +141,10 @@ void *query_thread(void *arg_) {
       if(!print) sa->print_match(meta, matches, false); 
       if(rev_comp) {
 	reverse_complement(*P, nucleotides_only);
-	if(print) printf("> %s Reverse\n", meta.c_str());
+	if(print){ 
+        if(print_length) printf("> %s Reverse\tLen = %ld\n", meta.c_str(), P->length()); 
+        else printf("> %s Reverse\n", meta.c_str());
+    }
 	if(type == MAM) sa->MAM(*P, matches, min_len, memCounter, print);
 	else if(type == MUM) sa->MUM(*P, matches, min_len, memCounter, print);
     else if(type == MEM) sa->MEM(*P, matches, min_len, print, memCounter, num_threads);
@@ -140,7 +153,7 @@ void *query_thread(void *arg_) {
     }
   }
   delete P;
-  printf("number of M(E/A/U)Ms: %ld\n", memCounter);
+  cerr << "number of M(E/A/U)Ms: " << memCounter << endl;
   pthread_exit(NULL);
 }
 
@@ -170,6 +183,7 @@ int main(int argc, char* argv[]) {
       {"suflink", 1, 0, 0}, // 11
       {"child", 1, 0, 0}, // 12
       {"skip", 1, 0, 0}, // 13
+      {"L", 0, 0, 0}, // 14
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -196,6 +210,7 @@ int main(int argc, char* argv[]) {
       case 11: suflink = atoi(optarg) > 0;	automatic = false; break;
       case 12: child = atoi(optarg) > 0;	automatic = false; break;
       case 13: sparseMult = atoi(optarg) > 0;	automaticSkip = false; break;
+      case 14: print_length = true; break;
       default: break; 
       }
     }
@@ -299,6 +314,7 @@ void usage(string prog) {
   cerr << "-F             force 4 column output format regardless of the number of" << endl;
   cerr << "               reference sequence inputs"  << endl;
   cerr << "-n             match only the characters a, c, g, or t" << endl;
+  cerr << "-L             print length of query sequence in header of matches" << endl;
   cerr << endl;
   cerr << "Additional options:" << endl;
   cerr << "-k             sampled suffix positions (one by default)" << endl;
