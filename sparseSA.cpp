@@ -706,7 +706,7 @@ void sparseSA::MUM(string &P, vector<match_t> &unique, int min_len, long& curren
     }
     ignoreprevious = ignorecurrent;
   }
-  if(!ignoreprevious) {
+  if(!ignoreprevious && !matches.empty()) {
     if(print) print_match(matches[matches.size()-1]);
     else unique.push_back(matches[matches.size()-1]);
   }
