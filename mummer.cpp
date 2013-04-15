@@ -364,13 +364,13 @@ void usage(string prog) {
   cerr << endl;
   cerr << "Example usage:" << endl;
   cerr << endl;
-  cerr << "./mummer -maxmatch -l 20 -b -n -k 3 -threads 3 query.fa ref.fa" << endl;
+  cerr << "./mummer -maxmatch -l 20 -b -n -k 3 -threads 3 ref.fa query.fa" << endl;
   cerr << "Find all maximal matches on forward and reverse strands" << endl;
   cerr << "of length 20 or greater, matching only a, c, t, or g." << endl;
   cerr << "Index every 3rd position in the ref.fa and use 3 threads to find MEMs." << endl;
   cerr << "Fastest method for one long query sequence." << endl;
   cerr << endl;
-  cerr << "./mummer -maxmatch -l 20 -b -n -k 3 -qthreads 3 query.fa ref.fa" << endl;
+  cerr << "./mummer -maxmatch -l 20 -b -n -k 3 -qthreads 3 ref.fa query.fa" << endl;
   cerr << "Same as above, but now use a single thread for every query sequence in" << endl;
   cerr << "query.fa. Fastest for many small query sequences." << endl;
   

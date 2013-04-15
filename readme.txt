@@ -38,12 +38,12 @@ Implemented MUMmer v3 options:
   
   Example usage:
   
-  ./mummer -maxmatch -l 20 -b -n -k 3 -threads 3 query.fa ref.fa
+  ./mummer -maxmatch -l 20 -b -n -k 3 -threads 3 ref.fa query.fa
   Find all maximal matches on forward and reverse strands
   of length 20 or greater, matching only a, c, t, or g.
   Index every 3rd position in the ref.fa and use 3 threads to find MEMs.
   Fastest method for one long query sequence.
   
-  ./mummer -maxmatch -l 20 -b -n -k 3 -qthreads 3 query.fa ref.fa
+  ./mummer -maxmatch -l 20 -b -n -k 3 -qthreads 3 ref.fa query.fa
   Same as above, but now use a single thread for every query sequence in
   query.fa. Fastest for many small query sequences.
