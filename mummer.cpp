@@ -263,8 +263,8 @@ int main(int argc, char* argv[]) {
   if(automaticSkip){
       if(suflink && !child) sparseMult = 1;
       else{
-          if(K >= 4) sparseMult = (int) (min_len-10)/K;
-          else sparseMult = (int) (min_len-12)/K;
+          if(K >= 4) sparseMult = (int) max((min_len-10)/K,1);
+          else sparseMult = (int) max((min_len-12)/K,1);
       }
   }
   else{
@@ -278,7 +278,7 @@ int main(int argc, char* argv[]) {
           cerr << " or " << ((int) (min_len-12)/K) << " would be more appropriate" << endl;
       }
   }
-  
+
   if(setBoth && setRevComp){
       cerr << "ERROR -r and -b options are mutually exclusive" << endl;
       exit(1);
