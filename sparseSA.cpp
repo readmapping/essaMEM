@@ -462,7 +462,7 @@ void sparseSA::findMEM(long k, string &P, vector<match_t> &matches, int min_len,
   // Right-most match used to terminate search.
   int min_lenK = min_len - (sparseMult*K-1);
 
-  while( prefix <= (long)P.length() - (K-k)) {
+  while( prefix <= (long)P.length() - min_lenK) {//BUGFIX: used to be "prefix <= (long)P.length() - (K-k0)"
 #ifndef NDEBUG
 //      interval_t mliCopy(mli.start,mli.end,mli.depth);
 //      traverse(P, prefix, mliCopy, min_lenK);    // Traverse until minimum length matched.
