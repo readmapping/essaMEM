@@ -43,6 +43,7 @@ static const unsigned int BITADD[256] = { UINT_MAX, UINT_MAX, UINT_MAX, UINT_MAX
 // Simulates a vector<int> LCP;
 struct vec_uchar {
   struct item_t{
+    item_t(){}
     item_t(size_t i, int v) { idx = i; val = v; }
     size_t idx; int val;
     bool operator < (item_t t) const { return idx < t.idx;  }
@@ -68,7 +69,14 @@ struct vec_uchar {
   }
   // Once all the values are set, call init. This will assure the
   // values >= 255 are sorted by index for fast retrieval.
-  void init() { sort(M.begin(), M.end()); cerr << "M.size()=" << M.size() << endl; }
+  void init() { sort(M.begin(), M.end()); cerr << "M.size()=" << M.size() << endl; std::vector<item_t>(M).swap(M);}
+  
+  long index_size_in_bytes(){
+      long indexSize = 0L;
+      indexSize += sizeof(vec) + vec.capacity()*sizeof(unsigned char);
+      indexSize += sizeof(M) + M.capacity()*(sizeof(size_t)+sizeof(int));
+      return indexSize;
+  }
 };
 
 // Match find by findMEM. 
@@ -124,6 +132,38 @@ struct sparseSA {
   bool printRevCompForw;
   bool forward;
   bool nucleotidesOnly;
+  
+  long index_size_in_bytes(){
+      long indexSize = 0L;
+      indexSize += sizeof(forward);
+      indexSize += sizeof(printRevCompForw);
+      indexSize += sizeof(printSubstring);
+      indexSize += sizeof(sparseMult);
+      indexSize += sizeof(hasSufLink);
+      indexSize += sizeof(hasChild);
+      indexSize += sizeof(K);
+      indexSize += sizeof(NKm1);
+      indexSize += sizeof(logN);
+      indexSize += sizeof(N);
+      indexSize += sizeof(_4column);
+      indexSize += sizeof(maxdescrlen);
+      indexSize += sizeof(descr);
+      indexSize += sizeof(hasKmer);
+      indexSize += sizeof(kMerSize);
+      indexSize += sizeof(kMerTableSize);
+      indexSize += sizeof(nucleotidesOnly);
+      for(int i = 0; i < descr.size(); i++){
+          indexSize += descr[i].capacity();
+      }
+      indexSize += sizeof(startpos) + startpos.capacity()*sizeof(long);
+      indexSize += S.capacity();
+      indexSize += sizeof(SA) + SA.capacity()*sizeof(unsigned int);
+      indexSize += sizeof(ISA) + ISA.capacity()*sizeof(int);
+      indexSize += sizeof(CHILD) + CHILD.capacity()*sizeof(int);
+      indexSize += sizeof(KMR) + KMR.capacity()*(2*sizeof(unsigned int));
+      indexSize += LCP.index_size_in_bytes();
+      return indexSize;
+  }
 
   // Maps a hit in the concatenated sequence set to a position in that sequence.
   void from_set(long hit, long &seq, long &seqpos) {
@@ -225,6 +265,15 @@ struct sparseSA {
 
   // Maximal Unique Match (MUM) 
   void MUM(string &P, vector<match_t> &unique, int min_len, long& memCount, bool forward_, bool print);  
+  
+  //save index to files
+  void save(const string &prefix);
+  
+  //load index from file
+  bool load(const string &prefix);
+  
+  //construct
+  void construct();
 };
 
 

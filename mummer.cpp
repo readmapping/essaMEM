@@ -169,6 +169,7 @@ void *query_thread(void *arg_) {
   delete P;
   cerr << "number of M(E/A/U)Ms: " << memCounter << endl;
   pthread_exit(NULL);
+  return 0;
 }
 
 // Added by Simon Gog for testing
@@ -181,6 +182,9 @@ void write_lock(int i){
 int main(int argc, char* argv[]) {
 	write_lock(0);
   // Collect parameters from the command line.
+  string save = "";
+  string load = "";
+        
   while (1) {
     static struct option long_options[] = { 
       {"l", 1, 0, 0}, // 0
@@ -202,6 +206,8 @@ int main(int argc, char* argv[]) {
       {"s", 0, 0, 0}, // 16
       {"c", 0, 0, 0}, // 17
       {"kmer", 1, 0, 0}, // 18
+      {"save", 1, 0, 0}, // 19
+      {"load", 1, 0, 0}, // 20
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -233,6 +239,8 @@ int main(int argc, char* argv[]) {
       case 16: printSubstring = true; break;
       case 17: printRevCompForw = true; break;
       case 18: kmer = atoi(optarg); automaticKmer = false; break;
+      case 19: save = optarg; break;
+      case 20: load = optarg; break;
       default: break; 
       }
     }
@@ -304,7 +312,53 @@ int main(int argc, char* argv[]) {
       forward = false;
   
   sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, kmer>0, sparseMult, kmer, printSubstring, printRevCompForw, nucleotides_only);
-
+  if(!load.empty()){
+      cerr << "attempting to load index " << load << endl;
+      if(sa->load(load)){
+          cerr << "index loaded succesfully" << endl;
+          cerr << "WARNING: program does not check the soundness of the reference file for given loaded index. Use the same reference file as used for constructing the index" << endl;
+          cerr << "WARNING: some options are now taken from loaded index instead of current user-set values" << endl;
+          cerr << "these include: sparseness (-k), suffix links (-suflink), child array (-child) and kmer table size (-kmer)." << endl;
+          //update sparseMult if necessary
+          if(automaticSkip){
+            if(sa->hasSufLink && !sa->hasChild) sparseMult = 1;
+            else{
+                if(sa->K >= 4) sparseMult = (int) max((min_len-10)/sa->K,1L);
+                else sparseMult = (int) max((min_len-12)/sa->K,1L);
+            }
+         }
+         else{
+            if(sparseMult*sa->K > min_len){
+                while(sparseMult*sa->K > min_len)
+                    sparseMult--;
+                cerr << "skip parameter was decreased to " << sparseMult << " because skip*K > minimum length" << endl;
+            }
+            if(sparseMult*sa->K > min_len-10){
+                cerr << "note that the skip parameter is very high, a value of " << ((int) (min_len-10)/K);
+                cerr << " or " << ((int) (min_len-12)/sa->K) << " would be more appropriate" << endl;
+            }
+         }
+         sa->sparseMult = sparseMult;
+         //update other fields
+         suflink = sa->hasSufLink;
+         child = sa->hasChild;
+         kmer = sa->kMerSize;
+         K = sa->K;
+      }
+      else{
+          cerr << "unable to load index " << load << endl;
+          cerr << "construct new index..." << endl;
+          sa->construct();
+      }
+  }
+  else{
+      sa->construct();
+  }
+  if(!save.empty()){
+      sa->save(save);
+      cerr << "saved index to " << save << endl;
+  }
+  cerr << "INDEX SIZE IN BYTES: " << sa->index_size_in_bytes() << endl;
   write_lock(1);
   clock_t start = clock();
   rusage m_ruse1, m_ruse2;
@@ -377,6 +431,8 @@ void usage(string prog) {
   cerr << "-skip          sparsify the MEM-finding algorithm even more, performing jumps of skip*k [auto (l-10)/k]" << endl;
   cerr << "               this is a performance parameter that trade-offs SA traversal with checking of right-maximal MEMs" << endl;
   cerr << "-kmer          use kmer table containing sa-intervals (speeds up searching first k characters) in the index and during search [int value, auto]" << endl;
+  cerr << "-save (string) save index to file to use again later (string)" << endl;
+  cerr << "-load (string) load index from file" << endl;
   cerr << endl;
   cerr << "Example usage:" << endl;
   cerr << endl;
