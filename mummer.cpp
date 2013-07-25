@@ -303,7 +303,7 @@ int main(int argc, char* argv[]) {
   if(setRevComp)
       forward = false;
   
-  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, kmer>0, sparseMult, kmer, printSubstring, printRevCompForw);
+  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, kmer>0, sparseMult, kmer, printSubstring, printRevCompForw, nucleotides_only);
 
   write_lock(1);
   clock_t start = clock();

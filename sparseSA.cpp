@@ -16,7 +16,7 @@ pthread_mutex_t cout_mutex = PTHREAD_MUTEX_INITIALIZER;
 long memCount = 0;
 
 sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, 
-        bool __4column, long K_, bool suflink_, bool child_, bool kmer_, int sparseMult_, int kMerSize_, bool printSubstring_, bool printRevCompForw_) : 
+        bool __4column, long K_, bool suflink_, bool child_, bool kmer_, int sparseMult_, int kMerSize_, bool printSubstring_, bool printRevCompForw_, bool nucleotidesOnly_) : 
   descr(descr_), startpos(startpos_), S(S_) {
   _4column = __4column;
   hasChild = child_;
@@ -27,6 +27,7 @@ sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_,
   printSubstring = printSubstring_;
   printRevCompForw = printRevCompForw_;
   forward = true;
+  nucleotidesOnly = nucleotidesOnly_;
 
   // Get maximum query sequence description length.
   maxdescrlen = 0;
@@ -403,7 +404,7 @@ void sparseSA::traverse(string &P, long prefix, interval_t &cur, int min_len) {
         cur.start = KMR[index].left;
         cur.end = KMR[index].right;
     }
-    else{
+    else if(index < kMerTableSize || nucleotidesOnly){
         return;//this results in no found seeds where the first KMERSIZE bases contain a non-ACGT character
     }
   }
@@ -434,23 +435,7 @@ void sparseSA::traverse_faster(const string &P,const long prefix, interval_t &cu
                 cur.start = KMR[index].left;
                 cur.end = KMR[index].right;
             }
-            else if(index >= kMerTableSize){
-                return;
-            }
-            else if(KMR[index].right <= 0){
-                string substringofP = P.substr(prefix,kMerSize);
-                long searchquerystart = 0;
-                long searchquerystop = N/K-1;
-                bool patternpresent = search(substringofP, searchquerystart, searchquerystop);
-                if(patternpresent){
-                    cerr << "pattern not found: " << P.substr(prefix,kMerSize) << endl;
-                    cerr << "index: " << index << endl;
-                    cerr << "KMER value: " << KMR[index].left << " " << KMR[index].right << endl;
-                    cerr << "pattern truely not found: " << patternpresent << endl;
-                }
-                return;
-            }
-            else{
+            else if(index < kMerTableSize || nucleotidesOnly){
                 return;//this results in no found seeds where the first KMERSIZE bases contain a non-ACGT character
             }
         }

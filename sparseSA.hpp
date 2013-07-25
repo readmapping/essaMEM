@@ -123,6 +123,7 @@ struct sparseSA {
   bool printSubstring;
   bool printRevCompForw;
   bool forward;
+  bool nucleotidesOnly;
 
   // Maps a hit in the concatenated sequence set to a position in that sequence.
   void from_set(long hit, long &seq, long &seqpos) {
@@ -136,7 +137,7 @@ struct sparseSA {
 
   // Constructor builds sparse suffix array. 
   sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, bool __4column, 
-  long K_, bool suflink_, bool child_, bool kmer_, int sparseMult_, int kMerSize_, bool printSubstring_, bool printRevCompForw_);
+  long K_, bool suflink_, bool child_, bool kmer_, int sparseMult_, int kMerSize_, bool printSubstring_, bool printRevCompForw_, bool nucleotidesOnly_);
 
   // Modified Kasai et all for LCP computation.
   void computeLCP();
