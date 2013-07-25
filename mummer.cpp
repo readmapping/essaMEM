@@ -30,8 +30,10 @@ bool setRevComp = false;
 bool setBoth = false;
 bool automatic = true;
 bool automaticSkip = true;
+bool automaticKmer = true;
 bool suflink = true;
 bool child = false;
+int  kmer = 0;
 bool print_length = false;
 bool printSubstring = false;
 bool printRevCompForw = false;
@@ -199,6 +201,7 @@ int main(int argc, char* argv[]) {
       {"r", 0, 0, 0}, // 15
       {"s", 0, 0, 0}, // 16
       {"c", 0, 0, 0}, // 17
+      {"kmer", 1, 0, 0}, // 18
       {0, 0, 0, 0} 
     };
     int longindex = -1;
@@ -229,6 +232,7 @@ int main(int argc, char* argv[]) {
       case 15: setRevComp = true; break;
       case 16: printSubstring = true; break;
       case 17: printRevCompForw = true; break;
+      case 18: kmer = atoi(optarg); automaticKmer = false; break;
       default: break; 
       }
     }
@@ -278,6 +282,17 @@ int main(int argc, char* argv[]) {
           cerr << " or " << ((int) (min_len-12)/K) << " would be more appropriate" << endl;
       }
   }
+  if(automaticKmer){
+      kmer = max(0,min(10,min_len - sparseMult*K + 1));
+  }
+  else{
+      if(kmer > 12)
+          cerr << "warning: very large value for kmer-size: index will be very large" << endl;
+      if(kmer > min_len - sparseMult*K + 1){
+          kmer = max(0,min(10,min_len - sparseMult*K + 1));
+        cerr << "kmer size was reduced to " << kmer << " because the user set value is too large and cannotbe used in the algorithm" << endl;
+      }
+  }
 
   if(setBoth && setRevComp){
       cerr << "ERROR -r and -b options are mutually exclusive" << endl;
@@ -288,7 +303,7 @@ int main(int argc, char* argv[]) {
   if(setRevComp)
       forward = false;
   
-  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, sparseMult, printSubstring, printRevCompForw);
+  sa = new sparseSA(ref, refdescr, startpos, _4column, K, suflink, child, kmer>0, sparseMult, kmer, printSubstring, printRevCompForw);
 
   write_lock(1);
   clock_t start = clock();
@@ -361,6 +376,7 @@ void usage(string prog) {
   cerr << "-child         use child table (1=yes or 0=no) in the index and during search [auto]" << endl;
   cerr << "-skip          sparsify the MEM-finding algorithm even more, performing jumps of skip*k [auto (l-10)/k]" << endl;
   cerr << "               this is a performance parameter that trade-offs SA traversal with checking of right-maximal MEMs" << endl;
+  cerr << "-kmer          use kmer table containing sa-intervals (speeds up searching first k characters) in the index and during search [int value, auto]" << endl;
   cerr << endl;
   cerr << "Example usage:" << endl;
   cerr << endl;

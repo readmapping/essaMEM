@@ -16,12 +16,14 @@ pthread_mutex_t cout_mutex = PTHREAD_MUTEX_INITIALIZER;
 long memCount = 0;
 
 sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_, 
-        bool __4column, long K_, bool suflink_, bool child_, int sparseMult_, bool printSubstring_, bool printRevCompForw_) : 
+        bool __4column, long K_, bool suflink_, bool child_, bool kmer_, int sparseMult_, int kMerSize_, bool printSubstring_, bool printRevCompForw_) : 
   descr(descr_), startpos(startpos_), S(S_) {
   _4column = __4column;
   hasChild = child_;
   hasSufLink = suflink_;
+  hasKmer = kmer_;
   sparseMult = sparseMult_;
+  kMerSize = kMerSize_;
   printSubstring = printSubstring_;
   printRevCompForw = printRevCompForw_;
   forward = true;
@@ -42,6 +44,7 @@ sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_,
   // Make sure last K-sampled characeter is this special character as well!!
   for(long i = 0; i < K; i++) S += '$'; // Append "special" end character. Note: It must be lexicographically less.
   N = S.length();
+  std::string(S.data(), S.size()).swap(S);
 
   if(K > 1) {
     long bucketNr = 1;
@@ -119,6 +122,13 @@ sparseSA::sparseSA(string &S_, vector<string> &descr_, vector<long> &startpos_,
     //Use algorithm by Abouelhoda et al to construct CHILD array
     computeChild();
   }
+  if(hasKmer){
+    kMerTableSize = 1 << (2*kMerSize);
+    cerr << "kmer table size: " << kMerTableSize << endl;
+    KMR.resize(kMerTableSize, saTuple_t());
+    //Use algorithm by Abouelhoda et al to construct CHILD array
+    computeKmer();
+  }
   NKm1 = N/K-1;
 }
 
@@ -183,6 +193,102 @@ void sparseSA::computeChild() {
             }
             stapelNL.push(i);
         }
+}
+
+// Look-up table construction algorithm
+void sparseSA::computeKmer() {
+    stack<interval_t> intervalStack;
+    stack<unsigned int> indexStack;
+    
+    interval_t curInterval(0,N/K-1,0);
+    unsigned int curIndex = 0;
+    unsigned int newIndex = 0;
+    
+    intervalStack.push(interval_t(0,N/K-1,0));
+    indexStack.push(curIndex);
+    
+    while(!intervalStack.empty()){
+        curInterval = intervalStack.top(); intervalStack.pop();
+        curIndex = indexStack.top(); indexStack.pop();
+        if(curInterval.depth == kMerSize){
+            if(curIndex < kMerTableSize){
+                KMR[curIndex].left = curInterval.start;
+                KMR[curIndex].right = curInterval.end;
+            }
+        }
+        else{
+            if(hasChild){//similar to function traverse_faster
+                //walk up to depth KMERSIZE or new child
+                long curLCP; //max LCP of this interval
+                if (curInterval.start == curInterval.end)
+                    curLCP = N - SA[curInterval.start];
+                else if (curInterval.start < CHILD[curInterval.end] && CHILD[curInterval.end] <= curInterval.end)
+                    curLCP = LCP[CHILD[curInterval.end]];
+                else
+                    curLCP = LCP[CHILD[curInterval.start]];
+                long minimum = min(curLCP,kMerSize);
+                newIndex = curIndex;
+                while(curInterval.depth < (long) minimum){
+                    unsigned int character = S[SA[curInterval.start]+curInterval.depth];
+                    newIndex = (newIndex << 2) | BITADD[character];
+                    curInterval.depth ++;
+                }
+                if(curInterval.depth == kMerSize){//reached KMERSIZE in the middle of an edge
+                    if(curIndex < kMerTableSize){
+                        KMR[newIndex].left = curInterval.start;
+                        KMR[newIndex].right = curInterval.end;
+                    }
+                }
+                else{//find child intervals
+                    long left = curInterval.start;
+                    long right = CHILD[curInterval.end];
+                    curIndex = newIndex;
+                    if(curInterval.start >= right || right > curInterval.end)
+                        right = CHILD[curInterval.start];
+                    //now left and right point to first child
+                    newIndex = (curIndex << 2) | BITADD[S[SA[left]+curInterval.depth]];
+                    if(newIndex < kMerTableSize){
+                        intervalStack.push(interval_t(left,right-1,curInterval.depth+1));
+                        indexStack.push(newIndex);
+                    }
+                    left = right;
+                    //while has next L-index
+                    while(CHILD[right] > right && LCP[right] == LCP[CHILD[right]]){
+                        right = CHILD[right];
+                        newIndex = (curIndex << 2) | BITADD[S[SA[left]+curInterval.depth]];
+                        if(newIndex < kMerTableSize){
+                            intervalStack.push(interval_t(left,right-1,curInterval.depth+1));
+                            indexStack.push(newIndex);
+                        }
+                        left = right;
+                    }
+                    //last interval
+                    newIndex = (curIndex << 2) | BITADD[S[SA[left]+curInterval.depth]];
+                    if(newIndex < kMerTableSize){
+                        intervalStack.push(interval_t(left,curInterval.end,curInterval.depth+1));
+                        indexStack.push(newIndex);
+                    }
+                }
+            }
+            else{//similar to function traverse
+                long start = curInterval.start; long end = curInterval.end;
+                
+                while(start <= curInterval.end){
+                    unsigned int character = S[SA[start]+curInterval.depth];
+                    newIndex = (curIndex << 2) | BITADD[character];
+                    start = curInterval.start;
+                    end = curInterval.end;
+                    top_down_faster(character, curInterval.depth, start, end);
+                    if(newIndex < kMerTableSize){
+                        intervalStack.push(interval_t(start,end,curInterval.depth+1));
+                        indexStack.push(newIndex);
+                    }
+                    // Advance to next interval.
+                    start = end+1; end = curInterval.end;
+                }
+            }
+        }
+    }
 }
 
 // Implements a variant of American flag sort (McIlroy radix sort).
@@ -273,7 +379,7 @@ bool sparseSA::top_down(char c, long i, long &start, long &end) {
 // Top down traversal of the suffix array to match a pattern.  NOTE:
 // NO childtab as in the enhanced suffix array (ESA).
 bool sparseSA::search(string &P, long &start, long &end) {
-  start = 0; end = N - 1;
+  start = 0; end = N/K - 1;
   long i = 0;
   while(i < (long)P.length()) {
     if(top_down(P[i], i, start, end) == false) {
@@ -288,8 +394,20 @@ bool sparseSA::search(string &P, long &start, long &end) {
 // Traverse pattern P starting from a given prefix and interval
 // until mismatch or min_len characters reached.
 void sparseSA::traverse(string &P, long prefix, interval_t &cur, int min_len) {
+  if(hasKmer && cur.depth == 0 && min_len >= kMerSize){//free match first bases
+    unsigned int index = 0;
+    for(size_t i = 0; i < kMerSize; i++)
+        index = (index << 2 ) | BITADD[P[prefix + i]];
+    if(index < kMerTableSize && KMR[index].right>0){
+        cur.depth = kMerSize;
+        cur.start = KMR[index].left;
+        cur.end = KMR[index].right;
+    }
+    else{
+        return;//this results in no found seeds where the first KMERSIZE bases contain a non-ACGT character
+    }
+  }
   if(cur.depth >= min_len) return;
-
   while(prefix+cur.depth < (long)P.length()) {
     long start = cur.start; long end = cur.end;
     // If we reach a mismatch, stop.
@@ -307,6 +425,35 @@ void sparseSA::traverse(string &P, long prefix, interval_t &cur, int min_len) {
 // until mismatch or min_len characters reached.
 // Uses the child table for faster traversal
 void sparseSA::traverse_faster(const string &P,const long prefix, interval_t &cur, int min_len){
+        if(hasKmer && cur.depth == 0 && min_len >= kMerSize){//free match first bases
+            unsigned int index = 0;
+            for(size_t i = 0; i < kMerSize; i++)
+                index = (index << 2 ) | BITADD[P[prefix + i]];
+            if(index < kMerTableSize && KMR[index].right>0){
+                cur.depth = kMerSize;
+                cur.start = KMR[index].left;
+                cur.end = KMR[index].right;
+            }
+            else if(index >= kMerTableSize){
+                return;
+            }
+            else if(KMR[index].right <= 0){
+                string substringofP = P.substr(prefix,kMerSize);
+                long searchquerystart = 0;
+                long searchquerystop = N/K-1;
+                bool patternpresent = search(substringofP, searchquerystart, searchquerystop);
+                if(patternpresent){
+                    cerr << "pattern not found: " << P.substr(prefix,kMerSize) << endl;
+                    cerr << "index: " << index << endl;
+                    cerr << "KMER value: " << KMR[index].left << " " << KMR[index].right << endl;
+                    cerr << "pattern truely not found: " << patternpresent << endl;
+                }
+                return;
+            }
+            else{
+                return;//this results in no found seeds where the first KMERSIZE bases contain a non-ACGT character
+            }
+        }
         if(cur.depth >= min_len) return;
         int c = prefix + cur.depth;
         bool intervalFound = c < P.length();
@@ -733,6 +880,7 @@ void *MEMthread(void *arg) {
   for(long k = 0; k < (long)K.size(); k++) {  sa->findMEM(K[k], *(data->P), matches, data->min_len, true); }
 
   pthread_exit(NULL);
+  return 0;
 }
 
 void sparseSA::MEM(string &P, vector<match_t> &matches, int min_len, bool print, long& currentCount, bool forward_, int num_threads) {
