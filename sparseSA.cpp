@@ -156,7 +156,7 @@ void sparseSA::computeKmer() {
                     curInterval.depth ++;
                 }
                 if(curInterval.depth == kMerSize){//reached KMERSIZE in the middle of an edge
-                    if(curIndex < kMerTableSize){
+                    if(newIndex < kMerTableSize){
                         KMR[newIndex].left = curInterval.start;
                         KMR[newIndex].right = curInterval.end;
                     }
